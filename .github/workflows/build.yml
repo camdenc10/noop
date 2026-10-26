@@ -25,6 +25,44 @@ jobs:
           fi
           ls
 
+      - name: Make app icon
+        working-directory: ${{ env.ROOT }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/v"
+          "$RUNNER_TEMP/v/bin/pip" install -q pillow
+          SET=Noop/Assets.xcassets
+          mkdir -p "$SET/AppIcon.appiconset"
+          cat > icon.py <<'PY'
+          import math, sys
+          from PIL import Image, ImageDraw
+          S = 2048
+          im = Image.new('RGB', (S, S), (0, 0, 0))
+          d = ImageDraw.Draw(im)
+          c = S / 2
+          r, w = 740, 160
+          d.arc([c - r, c - r, c + r, c + r], 0, 360, fill=(36, 36, 36), width=w)
+          frac = 0.78
+          d.arc([c - r, c - r, c + r, c + r], -90, -90 + 360 * frac, fill=(28, 255, 128), width=w)
+          for a in (-90, -90 + 360 * frac):
+              x = c + (r - w / 2) * math.cos(math.radians(a)); y = c + (r - w / 2) * math.sin(math.radians(a))
+              d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill=(28, 255, 128))
+          # pulse line through the middle
+          pts = [(c - 430, c + 20), (c - 210, c + 20), (c - 120, c - 190), (c + 20, c + 230), (c + 130, c - 90), (c + 190, c + 20), (c + 430, c + 20)]
+          d.line(pts, fill=(255, 255, 255), width=70, joint='curve')
+          for p in (pts[0], pts[-1]):
+              d.ellipse([p[0] - 35, p[1] - 35, p[0] + 35, p[1] + 35], fill=(255, 255, 255))
+          im.resize((1024, 1024), Image.LANCZOS).save(sys.argv[1])
+          PY
+          "$RUNNER_TEMP/v/bin/python" icon.py "$SET/AppIcon.appiconset/icon.png"
+          echo '{"info":{"author":"xcode","version":1}}' > "$SET/Contents.json"
+          echo '{"images":[{"filename":"icon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}' > "$SET/AppIcon.appiconset/Contents.json"
+          "$RUNNER_TEMP/v/bin/python" - <<'PY'
+          s = open("project.yml").read()
+          s = s.replace("GENERATE_INFOPLIST_FILE: NO", "GENERATE_INFOPLIST_FILE: NO\n        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon")
+          open("project.yml", "w").write(s)
+          PY
+          cat project.yml
+
       - name: Generate Xcode project
         working-directory: ${{ env.ROOT }}
         run: xcodegen generate
