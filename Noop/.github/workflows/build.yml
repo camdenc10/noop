@@ -1,0 +1,49 @@
+name: Build Noop IPA
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: brew install xcodegen ldid
+
+      - name: Arrange files
+        working-directory: Noop
+        run: |
+          mkdir -p Noop
+          mv App Design Engine Model Services Views Noop/
+          ls
+
+      - name: Generate Xcode project
+        working-directory: Noop
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        working-directory: Noop
+        run: |
+          xcodebuild -project Noop.xcodeproj -scheme Noop \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        working-directory: Noop
+        run: |
+          APP=build/Build/Products/Release-iphoneos/Noop.app
+          ldid -SNoop.entitlements "$APP/Noop"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qr ../Noop.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Noop-ipa
+          path: Noop.ipa
