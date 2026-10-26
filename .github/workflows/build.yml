@@ -13,19 +13,24 @@ jobs:
       - name: Install tools
         run: brew install xcodegen ldid
 
-      - name: Arrange files
-        working-directory: Noop
+      - name: Locate project
         run: |
-          mkdir -p Noop
-          mv App Design Engine Model Services Views Noop/
+          PJ=$(find . -name project.yml | head -1)
+          ROOT=$(cd "$(dirname "$PJ")" && pwd)
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+          cd "$ROOT"
+          if [ ! -d Noop ] && [ -d App ]; then
+            mkdir Noop
+            mv App Design Engine Model Services Views Noop/
+          fi
           ls
 
       - name: Generate Xcode project
-        working-directory: Noop
+        working-directory: ${{ env.ROOT }}
         run: xcodegen generate
 
       - name: Build (unsigned)
-        working-directory: Noop
+        working-directory: ${{ env.ROOT }}
         run: |
           xcodebuild -project Noop.xcodeproj -scheme Noop \
             -configuration Release -sdk iphoneos \
@@ -35,13 +40,13 @@ jobs:
             build
 
       - name: Package IPA
-        working-directory: Noop
+        working-directory: ${{ env.ROOT }}
         run: |
           APP=build/Build/Products/Release-iphoneos/Noop.app
           ldid -SNoop.entitlements "$APP/Noop"
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qr ../Noop.ipa Payload
+          zip -qr "$GITHUB_WORKSPACE/Noop.ipa" Payload
 
       - uses: actions/upload-artifact@v4
         with:
